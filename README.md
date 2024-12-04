@@ -2,9 +2,9 @@
 CS架构下，Server远程调用Client执行函数
 
 ## TodoList
-- [ ] project design
-- [ ] gRPC Server
+- [X] project design
+- [X] gRPC Server
 - [ ] gRPC Client
-- [ ] proto design
-- [ ] bidirectional stream
+- [X] proto design
+- [X] bidirectional stream
 - [ ] integration testing
