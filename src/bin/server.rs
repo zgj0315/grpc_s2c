@@ -35,10 +35,11 @@ impl GrpcS2cApi for GrpcS2cServer {
         req: Request<Streaming<StreamReq>>,
     ) -> Result<Response<Self::BidirectionalStream>, Status> {
         let (tx, rx) = mpsc::channel(10);
-        let input = "this is req fn 001 content from server";
+        let input = "hello client";
         let stream_rsp = StreamRsp {
             input: Some(stream_rsp::Input::Input001(input.into())),
         };
+
         tx.send(Ok(stream_rsp)).await.unwrap();
 
         // 启动接收返回的协程
@@ -47,7 +48,7 @@ impl GrpcS2cApi for GrpcS2cServer {
             while let Some(result) = in_stream.next().await {
                 match result {
                     Ok(stream_req) => {
-                        log::info!("get rsp from client, stream_req: {:?}", stream_req);
+                        log::info!("server get rsp from client: {:?}", stream_req);
                     }
                     Err(e) => {
                         log::error!("err: {}", e);
@@ -55,7 +56,7 @@ impl GrpcS2cApi for GrpcS2cServer {
                 }
             }
         });
-        log::info!("ready to receive rsp and send cmd to client");
+        log::info!("server send msg to client: {}", input);
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
     }
