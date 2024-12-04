@@ -1,0 +1,29 @@
+syntax = "proto3";
+package grpc_s2c.api;
+
+service GrpcS2cApi {
+  rpc Bidirectional(stream StreamReq) returns (stream StreamRsp) {}
+}
+
+message StreamRsp{
+  oneof input{
+    string input_001 = 1;
+    Input002 input_002 = 2;
+  }
+}
+
+message StreamReq{
+  oneof output{
+    string output_001 = 1;
+    Output002 output_002 = 2;
+  }
+}
+
+message Input002{
+  string name = 1;
+  int32 age = 2;
+}
+
+message Output002{
+  string msg = 1;
+}
