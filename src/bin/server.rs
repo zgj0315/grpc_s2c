@@ -1,11 +1,10 @@
+use grpc_s2c::grpc_s2c_api::{
+    grpc_s2c_api_server::{GrpcS2cApi, GrpcS2cApiServer},
+    rsp, Input001, Req, Rsp,
+};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
     pin::Pin,
-};
-
-use grpc_s2c::grpc_s2c_api::{
-    grpc_s2c_api_server::{GrpcS2cApi, GrpcS2cApiServer},
-    stream_rsp, StreamReq, StreamRsp,
 };
 use tokio::sync::mpsc;
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
@@ -29,21 +28,22 @@ struct GrpcS2cServer {}
 
 #[tonic::async_trait]
 impl GrpcS2cApi for GrpcS2cServer {
-    type BidirectionalStream = Pin<Box<dyn Stream<Item = Result<StreamRsp, Status>> + Send>>;
+    type BidirectionalStream = Pin<Box<dyn Stream<Item = Result<Rsp, Status>> + Send>>;
     async fn bidirectional(
         &self,
-        req: Request<Streaming<StreamReq>>,
+        request: Request<Streaming<Req>>,
     ) -> Result<Response<Self::BidirectionalStream>, Status> {
         let (tx, rx) = mpsc::channel(10);
-        let input = "hello client";
-        let stream_rsp = StreamRsp {
-            input: Some(stream_rsp::Input::Input001(input.into())),
+        let input = Rsp {
+            input: Some(rsp::Input::Input001(Input001 {
+                task_id: "task_id_001".to_string(),
+                msg: "the msg from server".to_string(),
+            })),
         };
-
-        tx.send(Ok(stream_rsp)).await.unwrap();
+        tx.send(Ok(input)).await.unwrap();
 
         // 启动接收返回的协程
-        let mut in_stream = req.into_inner();
+        let mut in_stream = request.into_inner();
         tokio::spawn(async move {
             while let Some(result) = in_stream.next().await {
                 match result {
@@ -56,8 +56,43 @@ impl GrpcS2cApi for GrpcS2cServer {
                 }
             }
         });
-        log::info!("server send msg to client: {}", input);
+        // log::info!("server send msg to client: {:?}", input);
         tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         Ok(Response::new(Box::pin(ReceiverStream::new(rx))))
+    }
+
+    async fn unary(&self, request: Request<Req>) -> Result<Response<Rsp>, Status> {
+        let req = request.into_inner();
+        match req.output {
+            None => {
+                log::info!("get none from client");
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                let ts_now = chrono::Utc::now().timestamp_millis();
+                let rsp = Rsp {
+                    input: Some(rsp::Input::Input001(Input001 {
+                        task_id: format!("task_id_{}", ts_now),
+                        msg: "the msg from server".to_string(),
+                    })),
+                };
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                log::info!("send a task to client: {:?}", rsp);
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                return Ok(Response::new(rsp));
+            }
+            Some(output) => {
+                log::info!("get from client: {:?}", output);
+                let ts_now = chrono::Utc::now().timestamp_millis();
+                let rsp = Rsp {
+                    input: Some(rsp::Input::Input001(Input001 {
+                        task_id: format!("task_id_{}", ts_now),
+                        msg: "the msg from server".to_string(),
+                    })),
+                };
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                log::info!("send a task to client: {:?}", rsp);
+                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                return Ok(Response::new(rsp));
+            }
+        }
     }
 }
