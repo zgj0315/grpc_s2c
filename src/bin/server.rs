@@ -25,10 +25,10 @@ async fn main() -> anyhow::Result<()> {
     if let Err(e) = RSP_LIST.set(VecDeque::new().into()) {
         log::error!("TASK_RSP set err: {:?}", e);
     };
-    for i in 0..100 {
+    for i in 0..1000 {
         tokio::spawn(async move {
             let msg = format!("message {:03}", i);
-            log::info!("send msg to client: {}", msg);
+            log::info!("make task: {}", msg);
             match run_task(msg).await {
                 Ok(req) => {
                     log::info!("get msg from client: {:?}", req);
@@ -122,7 +122,7 @@ impl GrpcS2cApi for GrpcS2cServer {
     async fn unary(&self, request: Request<Req>) -> Result<Response<Rsp>, Status> {
         let req = request.into_inner();
         if let Some(ref output) = req.output {
-            log::info!("get from client: {:?}", output);
+            // log::info!("get from client: {:?}", output);
             // 通过channel发给函数调用者
             let task_id = match output {
                 Output::Output001(v) => v.task_id.clone(),

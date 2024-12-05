@@ -54,7 +54,7 @@ async fn do_task_by_unary(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Resu
     let mut req = Req { output: None };
     loop {
         // log::info!("send task output to server: {:?}", req);
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
         let response = client.unary(req.clone()).await?;
         let rsp = response.into_inner();
         if let Some(input) = rsp.input {
@@ -64,8 +64,9 @@ async fn do_task_by_unary(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Resu
                     // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     for _ in 0..5 {
                         log::info!("do some work for task: {:?}", input_001);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1)).await;
+                        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
                     }
+                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
                     // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                     // 把执行结果，返回给Server，同时得到一个新的task
                     req = Req {
