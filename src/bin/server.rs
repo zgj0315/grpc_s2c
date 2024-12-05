@@ -66,7 +66,7 @@ impl GrpcS2cApi for GrpcS2cServer {
         match req.output {
             None => {
                 log::info!("get none from client");
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 let ts_now = chrono::Utc::now().timestamp_millis();
                 let rsp = Rsp {
                     input: Some(rsp::Input::Input001(Input001 {
@@ -74,9 +74,9 @@ impl GrpcS2cApi for GrpcS2cServer {
                         msg: "the msg from server".to_string(),
                     })),
                 };
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 log::info!("send a task to client: {:?}", rsp);
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 return Ok(Response::new(rsp));
             }
             Some(output) => {
@@ -88,9 +88,9 @@ impl GrpcS2cApi for GrpcS2cServer {
                         msg: "the msg from server".to_string(),
                     })),
                 };
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 log::info!("send a task to client: {:?}", rsp);
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
                 return Ok(Response::new(rsp));
             }
         }
