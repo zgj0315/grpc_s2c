@@ -123,10 +123,8 @@ impl GrpcS2cApi for GrpcS2cServer {
             .get(X_TASK_ID)
             .and_then(|value| value.to_str().ok())
             .map(|s| s.to_string());
-        // let task_id_opt: Option<String> = None;
         let req = request.into_inner();
         if let Some(ref _output) = req.output {
-            // log::info!("get from client: {:?}", output);
             // 通过channel发给函数调用者
             if let Some(task_sender) = TASK_SENDER.get() {
                 let mut task_sender_lock = task_sender.write();
