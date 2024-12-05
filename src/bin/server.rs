@@ -27,7 +27,7 @@ async fn main() -> anyhow::Result<()> {
     if let Err(e) = RSP_LIST.set(VecDeque::new().into()) {
         log::error!("TASK_RSP set err: {:?}", e);
     };
-    for i in 0..1000 {
+    for i in 0..10 {
         tokio::spawn(async move {
             let msg = format!("message {:03}", i);
             log::info!("make task: {}", msg);
