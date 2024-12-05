@@ -13,7 +13,6 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_line_number(true).init();
     let client = GrpcS2cApiClient::connect("http://127.0.0.1:50051").await?;
     // do_task_by_bidirectional(client).await?;
-    // do_task_by_unary(client).await?;
     exec_fn_by_unary_one_by_one(client).await?;
     Ok(())
 }
@@ -28,7 +27,6 @@ async fn _do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> any
            log::info!("client send rsp to server: {}", output);
            let stream_req = Req {
                output: Some(req::Output::Output001(Output001 {
-                  task_id: "".to_string(),
                   msg: "".to_string(),
                })),
            };
@@ -53,42 +51,6 @@ async fn _do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> any
     tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
     Ok(())
 }
-
-async fn _do_task_by_unary(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Result<()> {
-    // 带着一个空消息，去找Server要一个task
-    let mut req = Req { output: None };
-    loop {
-        // log::info!("send task output to server: {:?}", req);
-        // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-        let response = client.unary(req.clone()).await?;
-        let rsp = response.into_inner();
-        if let Some(input) = rsp.input {
-            match input {
-                Input::Input001(input_001) => {
-                    // log::info!("get task from server: {:?}", input_001);
-                    // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    for _ in 0..5 {
-                        log::info!("do some work for task: {:?}", input_001);
-                        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
-                    }
-                    tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
-                    // tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-                    // 把执行结果，返回给Server，同时得到一个新的task
-                    req = Req {
-                        output: Some(req::Output::Output001(Output001 {
-                            task_id: input_001.task_id,
-                            msg: format!("finsih {}", input_001.msg),
-                        })),
-                    };
-                }
-                Input::Input002(_) => {}
-            }
-        } else {
-            req = Req { output: None };
-        }
-    }
-}
-
 async fn exec_fn_by_unary_one_by_one(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Result<()> {
     let mut do_next = true;
     // 带着一个空消息，去找Server要一个task
@@ -96,6 +58,7 @@ async fn exec_fn_by_unary_one_by_one(mut client: GrpcS2cApiClient<Channel>) -> a
     let mut task_id_opt: Option<String> = None;
     while do_next {
         let mut request = Request::new(req.clone());
+
         // req header中写入task_id
         if let Some(task_id) = task_id_opt {
             let request_metadata = request.metadata_mut();
@@ -142,7 +105,6 @@ async fn fn_001(input: &Input001) -> anyhow::Result<Output001> {
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     // 把执行结果，返回给Server，同时得到一个新的task
     let output = Output001 {
-        task_id: input.task_id.clone(),
         msg: format!("finsih {}", input.msg),
     };
     Ok(output)
@@ -156,7 +118,7 @@ async fn fn_002(input: &Input002) -> anyhow::Result<Output002> {
     tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
     // 把执行结果，返回给Server，同时得到一个新的task
     let output = Output002 {
-        task_id: input.task_id.clone(),
+        code: 1,
         msg: format!("finsih {}", input.name),
     };
     Ok(output)

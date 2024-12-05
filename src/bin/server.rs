@@ -31,19 +31,7 @@ async fn main() -> anyhow::Result<()> {
         tokio::spawn(async move {
             let msg = format!("message {:03}", i);
             log::info!("make task: {}", msg);
-            // match run_task(msg).await {
-            //     Ok(req) => {
-            //         log::info!("get msg from client: {:?}", req);
-            //     }
-            //     Err(e) => {
-            //         log::error!("run taks err: {}", e);
-            //     }
-            // }
-            let task_id = Uuid::new_v4().to_string();
-            let input = Input::Input001(Input001 {
-                task_id: task_id,
-                msg,
-            });
+            let input = Input::Input001(Input001 { msg });
             match exec_fn(input).await {
                 Ok(req) => {
                     log::info!("get msg from client: {:?}", req);
@@ -69,10 +57,7 @@ static RSP_LIST: OnceCell<RwLock<VecDeque<(String, Rsp)>>> = OnceCell::new();
 
 async fn exec_fn(input: rsp::Input) -> anyhow::Result<Option<req::Output>> {
     let (task_tx, task_rx) = tokio::sync::oneshot::channel::<Req>();
-    let task_id = match &input {
-        Input::Input001(v) => v.task_id.clone(),
-        Input::Input002(v) => v.task_id.clone(),
-    };
+    let task_id = Uuid::new_v4().to_string();
     // 全局HashMap中加入task和sender
     if let Some(task_sender) = TASK_SENDER.get() {
         let mut task_sender_lock = task_sender.write();
@@ -94,35 +79,6 @@ async fn exec_fn(input: rsp::Input) -> anyhow::Result<Option<req::Output>> {
     }
 }
 
-async fn _run_task(msg: String) -> anyhow::Result<Req> {
-    let (task_tx, task_rx) = tokio::sync::oneshot::channel::<Req>();
-    let task_id = Uuid::new_v4().to_string();
-    // 全局HashMap中加入task和sender
-    if let Some(task_sender) = TASK_SENDER.get() {
-        let mut task_sender_lock = task_sender.write();
-        task_sender_lock.insert(task_id.clone(), task_tx);
-    };
-    // 全局RSP_LIST中加入rsp
-    let rsp = Rsp {
-        input: Some(rsp::Input::Input001(Input001 {
-            task_id: task_id.clone(),
-            msg,
-        })),
-    };
-    if let Some(rsp_list) = RSP_LIST.get() {
-        let mut rsp_list_lock = rsp_list.write();
-        rsp_list_lock.push_back((task_id, rsp));
-    };
-    // 等待回复
-    match task_rx.await {
-        Ok(req) => Ok(req),
-        Err(e) => {
-            log::error!("task rx err: {}", e);
-            Err(e.into())
-        }
-    }
-}
-
 #[derive(Default)]
 struct GrpcS2cServer {}
 
@@ -136,7 +92,6 @@ impl GrpcS2cApi for GrpcS2cServer {
         let (tx, rx) = mpsc::channel(10);
         let input = Rsp {
             input: Some(rsp::Input::Input001(Input001 {
-                task_id: "task_id_001".to_string(),
                 msg: "the msg from server".to_string(),
             })),
         };
@@ -168,7 +123,7 @@ impl GrpcS2cApi for GrpcS2cServer {
             .get(X_TASK_ID)
             .and_then(|value| value.to_str().ok())
             .map(|s| s.to_string());
-
+        // let task_id_opt: Option<String> = None;
         let req = request.into_inner();
         if let Some(ref _output) = req.output {
             // log::info!("get from client: {:?}", output);
@@ -189,10 +144,9 @@ impl GrpcS2cApi for GrpcS2cServer {
             let mut rsp_list_lock = rsp_list.write();
             let rsp_opt = rsp_list_lock.pop_front();
             if let Some((task_id, rsp)) = rsp_opt {
-                let mut response = Response::new(rsp);
-                let response_metadata = response.metadata_mut();
+                let mut response = Response::new(rsp.clone());
                 if let Ok(metada_value) = MetadataValue::try_from(task_id.as_str()) {
-                    response_metadata.insert(X_TASK_ID, metada_value);
+                    response.metadata_mut().insert(X_TASK_ID, metada_value);
                 };
                 return Ok(response);
             }

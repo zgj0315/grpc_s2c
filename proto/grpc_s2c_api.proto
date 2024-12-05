@@ -21,22 +21,19 @@ message Req{
 }
 
 message Input001{
-  string task_id = 1;
-  string msg = 2;
+  string msg = 1;
 }
 
 message Output001{
-  string task_id = 1;
-  string msg = 2;
+  string msg = 1;
 }
 
 message Input002{
-  string task_id = 1;
-  string name = 2;
-  int32 age = 3;
+  string name = 1;
+  int32 age = 2;
 }
 
 message Output002{
-  string task_id = 1;
+  int32 code = 1;
   string msg = 2;
 }
