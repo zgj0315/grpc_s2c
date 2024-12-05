@@ -1,9 +1,9 @@
-use grpc_s2c::grpc_s2c_api::req::Output;
 use grpc_s2c::grpc_s2c_api::rsp::Input;
 use grpc_s2c::grpc_s2c_api::{
     grpc_s2c_api_server::{GrpcS2cApi, GrpcS2cApiServer},
     req, rsp, Input001, Req, Rsp,
 };
+use grpc_s2c::X_TASK_ID;
 use once_cell::sync::OnceCell;
 use parking_lot::RwLock;
 use std::collections::{HashMap, VecDeque};
@@ -14,6 +14,7 @@ use std::{
 use tokio::sync::mpsc;
 use tokio::sync::oneshot::Sender;
 use tokio_stream::{wrappers::ReceiverStream, Stream, StreamExt};
+use tonic::metadata::MetadataValue;
 use tonic::{codec::CompressionEncoding, transport::Server, Request, Response, Status, Streaming};
 use uuid::Uuid;
 
@@ -64,7 +65,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 static TASK_SENDER: OnceCell<RwLock<HashMap<String, Sender<Req>>>> = OnceCell::new();
-static RSP_LIST: OnceCell<RwLock<VecDeque<Rsp>>> = OnceCell::new();
+static RSP_LIST: OnceCell<RwLock<VecDeque<(String, Rsp)>>> = OnceCell::new();
 
 async fn exec_fn(input: rsp::Input) -> anyhow::Result<Option<req::Output>> {
     let (task_tx, task_rx) = tokio::sync::oneshot::channel::<Req>();
@@ -81,7 +82,7 @@ async fn exec_fn(input: rsp::Input) -> anyhow::Result<Option<req::Output>> {
     let rsp = Rsp { input: Some(input) };
     if let Some(rsp_list) = RSP_LIST.get() {
         let mut rsp_list_lock = rsp_list.write();
-        rsp_list_lock.push_back(rsp);
+        rsp_list_lock.push_back((task_id, rsp));
     };
     // 等待回复
     match task_rx.await {
@@ -104,13 +105,13 @@ async fn _run_task(msg: String) -> anyhow::Result<Req> {
     // 全局RSP_LIST中加入rsp
     let rsp = Rsp {
         input: Some(rsp::Input::Input001(Input001 {
-            task_id: task_id,
+            task_id: task_id.clone(),
             msg,
         })),
     };
     if let Some(rsp_list) = RSP_LIST.get() {
         let mut rsp_list_lock = rsp_list.write();
-        rsp_list_lock.push_back(rsp);
+        rsp_list_lock.push_back((task_id, rsp));
     };
     // 等待回复
     match task_rx.await {
@@ -161,29 +162,39 @@ impl GrpcS2cApi for GrpcS2cServer {
     }
 
     async fn unary(&self, request: Request<Req>) -> Result<Response<Rsp>, Status> {
+        // req header 中读取 task_id
+        let request_metadata = request.metadata();
+        let task_id_opt = request_metadata
+            .get(X_TASK_ID)
+            .and_then(|value| value.to_str().ok())
+            .map(|s| s.to_string());
+
         let req = request.into_inner();
-        if let Some(ref output) = req.output {
+        if let Some(ref _output) = req.output {
             // log::info!("get from client: {:?}", output);
             // 通过channel发给函数调用者
-            let task_id = match output {
-                Output::Output001(v) => v.task_id.clone(),
-                Output::Output002(v) => v.task_id.clone(),
-            };
             if let Some(task_sender) = TASK_SENDER.get() {
                 let mut task_sender_lock = task_sender.write();
-                if let Some(sender) = task_sender_lock.remove(&task_id) {
-                    if let Err(e) = sender.send(req) {
-                        log::error!("sender req err: {:?}", e);
+                if let Some(task_id) = task_id_opt {
+                    if let Some(sender) = task_sender_lock.remove(&task_id) {
+                        if let Err(e) = sender.send(req) {
+                            log::error!("sender req err: {:?}", e);
+                        };
                     };
-                };
+                }
             }
         }
         // 获取一个待下发的任务
         if let Some(rsp_list) = RSP_LIST.get() {
             let mut rsp_list_lock = rsp_list.write();
             let rsp_opt = rsp_list_lock.pop_front();
-            if let Some(rsp) = rsp_opt {
-                return Ok(Response::new(rsp));
+            if let Some((task_id, rsp)) = rsp_opt {
+                let mut response = Response::new(rsp);
+                let response_metadata = response.metadata_mut();
+                if let Ok(metada_value) = MetadataValue::try_from(task_id.as_str()) {
+                    response_metadata.insert(X_TASK_ID, metada_value);
+                };
+                return Ok(response);
             }
         }
         return Ok(Response::new(Rsp { input: None }));
