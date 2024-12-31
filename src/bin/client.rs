@@ -13,11 +13,12 @@ use tonic::{transport::Channel, Request};
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt().with_line_number(true).init();
     let client = GrpcS2cApiClient::connect("http://127.0.0.1:50051").await?;
-    // do_task_by_bidirectional(client).await?;
+    do_task_by_bidirectional(client.clone()).await?;
     exec_fn_by_unary_one_by_one(client).await?;
+
     Ok(())
 }
-async fn _do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Result<()> {
+async fn do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Result<()> {
     let (tx, mut rx) = mpsc::channel(10);
     let outbound = async_stream::stream! {
         while let Some(rpc_fn_req) = rx.recv().await {
