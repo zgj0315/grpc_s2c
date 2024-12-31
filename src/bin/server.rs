@@ -1,7 +1,8 @@
-use grpc_s2c::grpc_s2c_api::rsp::Input;
 use grpc_s2c::grpc_s2c_api::{
     grpc_s2c_api_server::{GrpcS2cApi, GrpcS2cApiServer},
-    req, rsp, Input001, Req, Rsp,
+    req,
+    rsp::{self, Input},
+    rsp_task, Input001, Req, ReqTask, Rsp, RspTask,
 };
 use grpc_s2c::X_TASK_ID;
 use once_cell::sync::OnceCell;
@@ -84,14 +85,15 @@ struct GrpcS2cServer {}
 
 #[tonic::async_trait]
 impl GrpcS2cApi for GrpcS2cServer {
-    type BidirectionalStream = Pin<Box<dyn Stream<Item = Result<Rsp, Status>> + Send>>;
+    type BidirectionalStream = Pin<Box<dyn Stream<Item = Result<RspTask, Status>> + Send>>;
     async fn bidirectional(
         &self,
-        request: Request<Streaming<Req>>,
+        request: Request<Streaming<ReqTask>>,
     ) -> Result<Response<Self::BidirectionalStream>, Status> {
         let (tx, rx) = mpsc::channel(10);
-        let input = Rsp {
-            input: Some(rsp::Input::Input001(Input001 {
+        let input = RspTask {
+            task_id: "".to_string(),
+            input: Some(rsp_task::Input::Input001(Input001 {
                 msg: "the msg from server".to_string(),
             })),
         };

@@ -2,6 +2,7 @@ use grpc_s2c::grpc_s2c_api::rsp::Input;
 use grpc_s2c::grpc_s2c_api::{
     grpc_s2c_api_client::GrpcS2cApiClient, req, Input001, Input002, Output001, Output002, Req,
 };
+use grpc_s2c::grpc_s2c_api::{req_task, ReqTask};
 use grpc_s2c::X_TASK_ID;
 use tokio::sync::mpsc;
 use tokio_stream::StreamExt;
@@ -25,8 +26,9 @@ async fn _do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> any
            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
            let output = "hello server";
            log::info!("client send rsp to server: {}", output);
-           let stream_req = Req {
-               output: Some(req::Output::Output001(Output001 {
+           let stream_req = ReqTask {
+            task_id:"".to_string(),
+               output: Some(req_task::Output::Output001(Output001 {
                   msg: "".to_string(),
                })),
            };

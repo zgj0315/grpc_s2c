@@ -2,7 +2,7 @@ syntax = "proto3";
 package grpc_s2c.api;
 
 service GrpcS2cApi {
-  rpc Bidirectional(stream Req) returns (stream Rsp) {}
+  rpc Bidirectional(stream ReqTask) returns (stream RspTask) {}
   rpc Unary(Req) returns (Rsp) {}
 }
 
@@ -36,4 +36,20 @@ message Input002{
 message Output002{
   int32 code = 1;
   string msg = 2;
+}
+
+message ReqTask{
+  string task_id = 1;
+  oneof output{
+    Output001 output_001 = 2;
+    Output002 output_002 = 3;
+  }
+}
+
+message RspTask{
+  string task_id = 1;
+  oneof input{
+    Input001 input_001 = 2;
+    Input002 input_002 = 3;
+  }
 }
