@@ -5,7 +5,7 @@ use grpc_s2c::grpc_s2c_api::{
 };
 use grpc_s2c::X_TASK_ID;
 use once_cell::sync::OnceCell;
-use parking_lot::RwLock;
+use parking_lot::Mutex;
 use std::collections::{HashMap, VecDeque};
 use std::{
     net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -52,21 +52,21 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-static TASK_SENDER: OnceCell<RwLock<HashMap<String, Sender<Req>>>> = OnceCell::new();
-static RSP_LIST: OnceCell<RwLock<VecDeque<(String, Rsp)>>> = OnceCell::new();
+static TASK_SENDER: OnceCell<Mutex<HashMap<String, Sender<Req>>>> = OnceCell::new();
+static RSP_LIST: OnceCell<Mutex<VecDeque<(String, Rsp)>>> = OnceCell::new();
 
 async fn exec_fn(input: rsp::Input) -> anyhow::Result<Option<req::Output>> {
     let (task_tx, task_rx) = tokio::sync::oneshot::channel::<Req>();
     let task_id = Uuid::new_v4().to_string();
     // 全局HashMap中加入task和sender
     if let Some(task_sender) = TASK_SENDER.get() {
-        let mut task_sender_lock = task_sender.write();
+        let mut task_sender_lock = task_sender.lock();
         task_sender_lock.insert(task_id.clone(), task_tx);
     };
     // 全局RSP_LIST中加入rsp
     let rsp = Rsp { input: Some(input) };
     if let Some(rsp_list) = RSP_LIST.get() {
-        let mut rsp_list_lock = rsp_list.write();
+        let mut rsp_list_lock = rsp_list.lock();
         rsp_list_lock.push_back((task_id, rsp));
     };
     // 等待回复
@@ -127,7 +127,7 @@ impl GrpcS2cApi for GrpcS2cServer {
         if let Some(ref _output) = req.output {
             // 通过channel发给函数调用者
             if let Some(task_sender) = TASK_SENDER.get() {
-                let mut task_sender_lock = task_sender.write();
+                let mut task_sender_lock = task_sender.lock();
                 if let Some(task_id) = task_id_opt {
                     if let Some(sender) = task_sender_lock.remove(&task_id) {
                         if let Err(e) = sender.send(req) {
@@ -139,7 +139,7 @@ impl GrpcS2cApi for GrpcS2cServer {
         }
         // 获取一个待下发的任务
         if let Some(rsp_list) = RSP_LIST.get() {
-            let mut rsp_list_lock = rsp_list.write();
+            let mut rsp_list_lock = rsp_list.lock();
             let rsp_opt = rsp_list_lock.pop_front();
             if let Some((task_id, rsp)) = rsp_opt {
                 let mut response = Response::new(rsp.clone());
