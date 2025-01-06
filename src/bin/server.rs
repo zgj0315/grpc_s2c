@@ -142,29 +142,35 @@ impl GrpcS2cApi for GrpcS2cServer {
     ) -> Result<Response<Self::BidirectionalStream>, Status> {
         // log::info!("bidirectional run");
         let (tx, rx) = mpsc::channel(1);
-
-        // 下发所有任务
-        // log::info!("TASK_RSP_LIST start");
-        loop {
-            let rsp_task_opt = match TASK_RSP_LIST.get() {
-                Some(task_rsp_list) => {
-                    let mut task_rsp_list_lock = task_rsp_list.lock();
-                    log::info!("task_rsp_list.len(): {}", task_rsp_list_lock.len());
-                    task_rsp_list_lock.pop_front()
+        tokio::spawn(async move {
+            // 下发所有任务
+            // log::info!("TASK_RSP_LIST start");
+            loop {
+                let rsp_task_opt = match TASK_RSP_LIST.get() {
+                    Some(task_rsp_list) => {
+                        let mut task_rsp_list_lock = task_rsp_list.lock();
+                        // log::info!("task_rsp_list.len(): {}", task_rsp_list_lock.len());
+                        task_rsp_list_lock.pop_front()
+                    }
+                    None => None,
+                };
+                // log::info!("rsp_task_opt: {:?}", rsp_task_opt);
+                match rsp_task_opt {
+                    Some(rsp_task) => {
+                        log::info!("send to client task: {}", rsp_task.task_id);
+                        if let Err(e) = tx.send(Ok(rsp_task)).await {
+                            log::error!("tx send err: {}", e);
+                        };
+                    }
+                    None => {
+                        // log::info!("break");
+                        break;
+                    }
                 }
-                None => None,
-            };
-            match rsp_task_opt {
-                Some(rsp_task) => {
-                    log::info!("send to client task: {}", rsp_task.task_id);
-                    if let Err(e) = tx.send(Ok(rsp_task)).await {
-                        log::error!("tx send err: {}", e);
-                    };
-                }
-                None => break,
             }
-        }
-        // log::info!("TASK_RSP_LIST end");
+            // log::info!("TASK_RSP_LIST end");
+        });
+
         // 启动接收返回的协程
         // log::info!("rev rsp start");
         let mut in_stream = request.into_inner();
