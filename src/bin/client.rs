@@ -29,7 +29,7 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn(async move {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(5));
         loop {
-            log::info!("do_task_by_bidirectional run");
+            // log::info!("do_task_by_bidirectional run");
             interval.tick().await;
             if let Err(e) = do_task_by_bidirectional(client_clone.clone()).await {
                 log::error!("do_task_by_bidirectional err: {}", e);
@@ -47,7 +47,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn handle_task() -> anyhow::Result<()> {
-    log::info!("handle_task run");
+    // log::info!("handle_task run");
     loop {
         let rsp_task_op = match TASK_TODO.get() {
             Some(task_todo) => {
@@ -56,7 +56,7 @@ async fn handle_task() -> anyhow::Result<()> {
             }
             None => None,
         };
-        log::info!("rsp_task_op: {:?}", rsp_task_op);
+        // log::info!("rsp_task_op: {:?}", rsp_task_op);
         match rsp_task_op {
             Some(rsp_task) => {
                 log::info!("handle task: {:?}", rsp_task);
@@ -93,7 +93,8 @@ async fn handle_task() -> anyhow::Result<()> {
 }
 
 async fn do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> anyhow::Result<()> {
-    log::info!("do_task_by_bidirectional start");
+    log::info!("heartbeat");
+    // log::info!("do_task_by_bidirectional start");
     let outbound = async_stream::stream! {
         loop {
             let req_task_op = match TASK_DONE.get() {
@@ -114,12 +115,12 @@ async fn do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> anyh
         }
     };
     let stream_req = Request::new(outbound);
-    log::info!("send req to recever");
+    // log::info!("send req to recever");
     // 接收server下发的信息
     let rsp = client.bidirectional(stream_req).await?;
     let mut rsp_stream = rsp.into_inner();
     while let Some(received) = rsp_stream.next().await {
-        log::info!("get rsp_stream");
+        // log::info!("get rsp_stream");
         match received {
             Ok(rpc_fn_req) => {
                 log::info!("get task: {}", rpc_fn_req.task_id);
@@ -133,7 +134,7 @@ async fn do_task_by_bidirectional(mut client: GrpcS2cApiClient<Channel>) -> anyh
             }
         }
     }
-    log::info!("do_task_by_bidirectional end");
+    // log::info!("do_task_by_bidirectional end");
     // tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
     Ok(())
 }
